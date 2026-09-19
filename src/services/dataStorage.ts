@@ -10,6 +10,12 @@ import {
 } from '../data';
 import { initialChatChannels, initialChatMessages } from '../chatData';
 import { getRealTodayDate } from '../lib/utils';
+import { 
+  checkClientSupabaseDirect, 
+  syncDirectToSupabase, 
+  fetchDirectFromSupabase, 
+  CLIENT_SUPABASE_CONFIG 
+} from './clientSupabase';
 
 export type StorageNamespace = 'LOCAL' | 'PROD' | 'DEMO';
 
@@ -539,24 +545,45 @@ export class DataStorageService {
     tablesFound: string[];
     missingTables: string[];
     connectionError: string | null;
+    connectionMode?: 'VERCEL_DIRECT' | 'SERVER_PROXY';
   }> {
+    // 1. Try server proxy endpoint first (if running on backend or Vercel serverless)
     try {
       const res = await fetch('/api/supabase/status');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data && typeof data.connected === 'boolean') {
+          return {
+            ...data,
+            connectionMode: 'SERVER_PROXY'
+          };
+        }
+      }
+    } catch (_) {
+      // Backend unavailable or running in static Vercel mode - fallback to direct client
+    }
+
+    // 2. Direct client fallback for Vercel static & Edge deployments
+    try {
+      const clientStatus = await checkClientSupabaseDirect();
+      return {
+        ...clientStatus,
+        connectionMode: 'VERCEL_DIRECT'
+      };
     } catch (err: any) {
       return {
         connected: false,
         project: {
-          id: 'bmznfrxllzxamwwqwdjn',
-          name: 'zainulsyaifun45',
-          url: 'https://bmznfrxllzxamwwqwdjn.supabase.co',
-          dashboardSqlUrl: 'https://supabase.com/dashboard/project/bmznfrxllzxamwwqwdjn/sql/new'
+          id: CLIENT_SUPABASE_CONFIG.projectId,
+          name: CLIENT_SUPABASE_CONFIG.projectName,
+          url: CLIENT_SUPABASE_CONFIG.url,
+          dashboardSqlUrl: CLIENT_SUPABASE_CONFIG.dashboardSqlUrl
         },
         tablesReady: false,
         tablesFound: [],
         missingTables: ['app_state'],
-        connectionError: err?.message || 'Gagal menghubungi server proxy backend'
+        connectionError: err?.message || 'Gagal tersambung ke Supabase'
       };
     }
   }
@@ -564,57 +591,89 @@ export class DataStorageService {
   public async getSupabaseSql(): Promise<{ projectId: string; projectName: string; sql: string }> {
     try {
       const res = await fetch('/api/supabase/sql');
-      return await res.json();
-    } catch (err) {
-      return {
-        projectId: 'bmznfrxllzxamwwqwdjn',
-        projectName: 'zainulsyaifun45',
-        sql: '-- Gagal memuat skrip'
-      };
-    }
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        return await res.json();
+      }
+    } catch (_) {}
+
+    return {
+      projectId: CLIENT_SUPABASE_CONFIG.projectId,
+      projectName: CLIENT_SUPABASE_CONFIG.projectName,
+      sql: `-- Skrip Inisialisasi Supabase untuk Proyek ${CLIENT_SUPABASE_CONFIG.projectName}\nCREATE TABLE IF NOT EXISTS public.app_state (key text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz DEFAULT now());`
+    };
   }
 
   public async syncWithSupabase(dbPayload?: CompleteStorageDatabase): Promise<{ success: boolean; message: string; data?: any }> {
     const dataToSync = dbPayload || this.getDatabase();
+
+    // 1. Try server proxy endpoint first
     try {
       const res = await fetch('/api/supabase/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSync)
       });
-      const json = await res.json();
-      if (json.success) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const json = await res.json();
+        if (json.success) {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('SIM_HAJI_LAST_SUPABASE_SYNC', new Date().toISOString());
+          }
+          return {
+            success: true,
+            message: 'Sinkronisasi ke basis data Supabase berhasil (via Server Proxy)!',
+            data: json
+          };
+        }
+      }
+    } catch (_) {
+      // Backend unavailable or running in Vercel client mode, fallback to direct
+    }
+
+    // 2. Direct client sync (Vercel & Browser native)
+    try {
+      const directRes = await syncDirectToSupabase(dataToSync);
+      if (directRes.success) {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('SIM_HAJI_LAST_SUPABASE_SYNC', new Date().toISOString());
         }
         return {
           success: true,
-          message: 'Sinkronisasi ke basis data Supabase (zainulsyaifun45) berhasil!',
-          data: json
-        };
-      } else {
-        return {
-          success: false,
-          message: json.results?.error || json.message || 'Tabel Supabase belum diinisialisasi.',
-          data: json
+          message: 'Sinkronisasi ke basis data Supabase berhasil (Vercel Direct Connection)!',
+          data: directRes.results
         };
       }
+      return {
+        success: false,
+        message: directRes.message || 'Gagal sinkronisasi langsung ke Supabase'
+      };
     } catch (err: any) {
       return {
         success: false,
-        message: `Koneksi gagal: ${err?.message || 'Server backend tidak dapat dihubungi'}`
+        message: `Koneksi gagal: ${err?.message || 'Gagal menghubungkan Vercel ke Supabase'}`
       };
     }
   }
 
   public async fetchFromSupabase(): Promise<{ success: boolean; data?: any; message?: string }> {
+    // 1. Try server proxy endpoint first
     try {
       const res = await fetch('/api/supabase/data');
-      const json = await res.json();
-      if (json.success && json.data) {
-        return { success: true, data: json.data, message: 'Data berhasil ditarik dari Supabase' };
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return { success: true, data: json.data, message: 'Data berhasil ditarik dari Supabase (via Server Proxy)' };
+        }
       }
-      return { success: false, message: json.message || 'Data Supabase belum tersedia' };
+    } catch (_) {}
+
+    // 2. Direct client fetch fallback (Vercel static)
+    try {
+      const directData = await fetchDirectFromSupabase();
+      return directData;
     } catch (err: any) {
       return { success: false, message: err?.message || 'Gagal mengambil data dari Supabase' };
     }

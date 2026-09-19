@@ -2781,6 +2781,13 @@ export function AuditLogView() {
                   <span>Supabase Backend Cloud Database</span>
                 </div>
 
+                <div className="inline-flex items-center space-x-1.5 bg-black/40 text-slate-100 border border-white/20 px-3 py-1 rounded-full text-xs font-mono font-semibold">
+                  <svg className="w-3 h-3 fill-current text-white inline-block" viewBox="0 0 1155 1000">
+                    <path d="m577.3 0 577.4 1000H0z"/>
+                  </svg>
+                  <span>Vercel Deploy Ready</span>
+                </div>
+
                 <div className="inline-flex items-center space-x-1.5 bg-white/10 text-slate-200 px-3 py-1 rounded-full text-xs font-mono">
                   <span className={`w-2 h-2 rounded-full ${supabaseStatus?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
                   <span>Proyek: zainulsyaifun45 (bmznfrxllzxamwwqwdjn)</span>
@@ -2788,10 +2795,10 @@ export function AuditLogView() {
               </div>
 
               <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                Pangkalan Data Cloud Supabase Terintegrasi
+                Pangkalan Data Cloud Supabase &amp; Koneksi Vercel
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Aplikasi SIM-Akomodasi telah terhubung ke proyek Supabase PostgreSQL Anda (<span className="text-emerald-300 font-mono">https://bmznfrxllzxamwwqwdjn.supabase.co</span>). Seluruh data kamar, transaksi reservasi, pekerjaan teknisi, inspeksi QC, dan akun pengguna disinkronkan secara aman melalui layer backend server.
+                Aplikasi SIM-Akomodasi telah dikonfigurasi secara tangguh untuk berjalan di Vercel maupun server kontainer. Seluruh data kamar, transaksi reservasi, pekerjaan teknisi, inspeksi QC, dan akun pengguna terhubung ke database Supabase PostgreSQL (<span className="text-emerald-300 font-mono">https://bmznfrxllzxamwwqwdjn.supabase.co</span>) dengan proteksi fallback otomatis (Serverless Proxy &amp; Vercel Direct Edge).
               </p>
 
               {/* Status and Last Sync Ribbon */}
@@ -2805,10 +2812,14 @@ export function AuditLogView() {
                 </div>
 
                 <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center space-x-2">
-                  <i className="fa-solid fa-server text-emerald-400"></i>
-                  <span className="text-slate-300">Status Endpoint:</span>
+                  <i className="fa-solid fa-link text-emerald-400"></i>
+                  <span className="text-slate-300">Status Vercel &harr; Supabase:</span>
                   <span className={`font-bold ${supabaseStatus?.connected ? 'text-emerald-300' : 'text-amber-300'}`}>
-                    {supabaseStatus?.connected ? 'Terhubung (REST v1)' : 'Memeriksa / Standby'}
+                    {supabaseStatus?.connected 
+                      ? (supabaseStatus.connectionMode === 'VERCEL_DIRECT' 
+                          ? 'Terhubung (Vercel Direct Edge)' 
+                          : 'Terhubung (Serverless / Proxy)') 
+                      : 'Memeriksa / Standby'}
                   </span>
                 </div>
               </div>
