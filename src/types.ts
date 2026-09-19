@@ -293,3 +293,22 @@ export interface ChatChannel {
   lastMessageTime?: string;
   lastSenderName?: string;
 }
+
+export interface BreakfastOrder {
+  id: string;
+  transactionId?: string | null;
+  roomId?: string | null;
+  building: string;
+  roomNumber: string;
+  guestName: string;
+  kloter?: string;
+  menu: string;
+  portions: number;
+  days: number;
+  deliveryTime?: string;
+  status: 'MENUNGGU' | 'SEDANG_DIBUAT' | 'PENGANTARAN' | 'SELESAI';
+  notes?: string;
+  orderDate: string;
+  createdUser?: string;
+  updatedAt?: string;
+}
