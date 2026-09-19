@@ -191,7 +191,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    refreshSupabaseStatus();
+    let isMounted = true;
+    const initAppWithSupabase = async () => {
+      try {
+        const status = await dataStorage.checkSupabaseStatus();
+        if (isMounted) setSupabaseStatus(status);
+        if (status?.connected && status?.tablesReady) {
+          // Auto-hydrate latest cloud database on load so Vercel matches Supabase immediately
+          const res = await dataStorage.fetchFromSupabase();
+          if (isMounted && res.success && res.data) {
+            const fetched = res.data;
+            if (Array.isArray(fetched.users) && fetched.users.length > 0) setUsers(fetched.users);
+            if (Array.isArray(fetched.rooms) && fetched.rooms.length > 0) setRooms(fetched.rooms);
+            if (Array.isArray(fetched.transactions)) setTransactions(fetched.transactions);
+            if (Array.isArray(fetched.maintenances)) setMaintenances(fetched.maintenances);
+            if (Array.isArray(fetched.qcInspections)) setQcInspections(fetched.qcInspections);
+            if (Array.isArray(fetched.workSessions)) setWorkSessions(fetched.workSessions);
+            if (Array.isArray(fetched.auditLogs)) setAuditLogs(fetched.auditLogs);
+            if (Array.isArray(fetched.chatChannels)) setChatChannels(fetched.chatChannels);
+            if (Array.isArray(fetched.chatMessages)) setChatMessages(fetched.chatMessages);
+            dataStorage.saveDatabase(fetched);
+            const syncTime = new Date().toISOString();
+            setLastSupabaseSync(syncTime);
+          }
+        }
+      } catch (_) {}
+    };
+
+    initAppWithSupabase();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
