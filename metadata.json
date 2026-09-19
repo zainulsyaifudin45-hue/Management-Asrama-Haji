@@ -1,0 +1,8 @@
+{
+  "name": "Management Asrama Haji Jakarta",
+  "description": "Pengelola Penginapan Multi-Gedung",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
